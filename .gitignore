@@ -2,3 +2,8 @@
 /FRONTEND_ADDITIONS.md
 /test_new_apis.py
 /venv
+# 忽略所有 .pyc 文件
+*.pyc
+
+# 忽略所有 __pycache__ 文件夹
+__pycache__/

@@ -57,7 +57,7 @@ const Login: React.FC = () => {
     }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h2>Casbin权限管理系统</h2>
+          <h2>权限管理系统Demo</h2>
           <p>请登录您的账户</p>
         </div>
         

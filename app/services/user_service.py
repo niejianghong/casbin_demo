@@ -137,7 +137,9 @@ class UserService:
     @staticmethod
     def get_users_by_enterprise(db: Session, enterprise_code: str) -> List[User]:
         """获取企业下的用户"""
-        return db.query(User).join(UserEnterprise).filter(
+        return db.query(User).join(
+            UserEnterprise, User.user_id == UserEnterprise.user_id
+        ).filter(
             and_(
                 UserEnterprise.enterprise_code == enterprise_code,
                 UserEnterprise.status == 0

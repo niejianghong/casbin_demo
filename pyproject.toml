@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "casbin-demo"
+name = "租户用户角色权限资源-demo"
 version = "0.1.0"
 description = "集团级用户权限管理系统"
 authors = ["Your Name <your.email@example.com>"]

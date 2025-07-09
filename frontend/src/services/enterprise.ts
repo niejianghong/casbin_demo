@@ -3,8 +3,8 @@ import { Enterprise, PaginatedResponse } from '../types';
 
 export const enterpriseService = {
   // 获取企业列表
-  getEnterprises: async (page: number = 1, size: number = 10): Promise<PaginatedResponse<{ enterprises: Enterprise[] }>> => {
-    return api.get('/v1/enterprises', { params: { skip: (page - 1) * size, limit: size } });
+  getEnterprises: async (page: number = 1, size: number = 100): Promise<PaginatedResponse<{ enterprises: Enterprise[] }>> => {
+    return api.get('/v1/enterprises/', { params: { skip: (page - 1) * size, limit: size } });
   },
 
   // 获取企业详情

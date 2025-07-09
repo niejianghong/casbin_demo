@@ -5,6 +5,7 @@ from app.models.role import Role
 from app.models.relationships import RoleEnterprise, UserRole
 from app.schemas.role import RoleCreate, RoleUpdate, RoleEnterpriseAssign
 from app.core.permission_manager import get_permission_manager
+from sqlalchemy.orm import aliased
 
 
 class RoleService:
@@ -98,7 +99,7 @@ class RoleService:
     @staticmethod
     def get_roles_by_enterprise(db: Session, enterprise_code: str) -> List[Role]:
         """获取企业下的角色"""
-        return db.query(Role).join(RoleEnterprise).filter(
+        return db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
             RoleEnterprise.enterprise_code == enterprise_code
         ).all()
     

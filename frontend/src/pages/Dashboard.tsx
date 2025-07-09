@@ -22,10 +22,10 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../utils/store';
-import { userService } from '../services/userService';
-import { roleService } from '../services/roleService';
-import { resourceService } from '../services/resourceService';
-import { enterpriseService } from '../services/enterpriseService';
+import { userService } from '../services/user';
+import { roleService } from '../services/role';
+import { resourceService } from '../services/resource';
+import { enterpriseService } from '../services/enterprise';
 
 const { Title, Text } = Typography;
 

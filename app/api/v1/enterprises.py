@@ -15,7 +15,7 @@ router = APIRouter(prefix="/enterprises", tags=["企业管理"])
 @router.get("/", response_model=PaginatedResponse)
 def get_enterprises(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("enterprise", "read"))
 ):

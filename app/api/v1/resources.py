@@ -15,7 +15,7 @@ router = APIRouter(prefix="/resources", tags=["资源管理"])
 @router.get("/", response_model=PaginatedResponse)
 def get_resources(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=200),
     resource_type: int = Query(None, description="资源类型：1-API，2-Menu，3-Agent"),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("resource", "read"))

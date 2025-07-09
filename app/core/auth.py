@@ -80,8 +80,8 @@ def check_permission(resource: str, action: str = "*"):
         db: Session = Depends(get_db)
     ):
         # 超级管理员拥有所有权限
-        permission_manager = get_permission_manager(db)
-        if permission_manager._is_super_admin(current_user.user_id):
+        
+        if current_user.is_admin == 1:
             return current_user
         
         # 从token中获取企业代码
@@ -96,7 +96,7 @@ def check_permission(resource: str, action: str = "*"):
             )
         
         # 使用权限管理器检查权限
-
+        permission_manager = get_permission_manager(db)
         if not permission_manager.check_permission(current_user.user_id, enterprise_code, resource):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

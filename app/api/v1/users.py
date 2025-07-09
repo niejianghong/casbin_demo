@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
+from app.core.permission_manager import get_permission_manager
+from app.models.role import Role
+from app.services.role_service import RoleService
 from app.services.user_service import UserService
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserEnterpriseAssign
 from app.schemas.base import BaseResponse, PaginatedResponse
@@ -14,7 +17,7 @@ router = APIRouter(prefix="/users", tags=["用户管理"])
 @router.get("/", response_model=PaginatedResponse)
 def get_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("user", "read"))
 ):

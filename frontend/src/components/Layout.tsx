@@ -99,7 +99,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           fontSize: collapsed ? 12 : 16,
           fontWeight: 'bold'
         }}>
-          {collapsed ? 'CD' : 'Casbin Demo'}
+          {collapsed ? 'CD' : 'TPRAC Demo'}
         </div>
         <Menu
           theme="dark"

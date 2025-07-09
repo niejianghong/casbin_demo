@@ -3,8 +3,8 @@ import { Role, PaginatedResponse } from '../types';
 
 export const roleService = {
   // 获取角色列表
-  getRoles: async (page: number = 1, size: number = 10): Promise<PaginatedResponse<{ roles: Role[] }>> => {
-    return api.get('/v1/roles', { params: { skip: (page - 1) * size, limit: size } });
+  getRoles: async (page: number = 1, size: number = 100): Promise<PaginatedResponse<{ roles: Role[] }>> => {
+    return api.get('/v1/roles/', { params: { skip: (page - 1) * size, limit: size } });
   },
 
   // 获取角色详情

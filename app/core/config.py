@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # 应用配置
-    APP_NAME: str = "Casbin权限管理系统"
+    APP_NAME: str = "权限管理系统"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     

@@ -3,8 +3,8 @@ import { User, PaginatedResponse } from '../types';
 
 export const userService = {
   // 获取用户列表
-  getUsers: async (page: number = 1, size: number = 10): Promise<PaginatedResponse<{ users: User[] }>> => {
-    return api.get('/v1/users', { params: { skip: (page - 1) * size, limit: size } });
+  getUsers: async (page: number = 1, size: number = 100): Promise<PaginatedResponse<{ users: User[] }>> => {
+    return api.get('/v1/users/', { params: { skip: (page - 1) * size, limit: size } });
   },
 
   // 获取用户详情

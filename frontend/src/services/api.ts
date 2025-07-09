@@ -13,6 +13,7 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     console.log('请求拦截器 - Token:', token);
     console.log('请求URL:', config.url);
+    console.log('请求拦截器 headers:', config.headers, config.url);
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

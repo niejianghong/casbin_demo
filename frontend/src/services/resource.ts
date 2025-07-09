@@ -3,12 +3,12 @@ import { Resource, PaginatedResponse, MenuItem } from '../types';
 
 export const resourceService = {
   // 获取资源列表
-  getResources: async (page: number = 1, size: number = 10, resourceType?: number): Promise<PaginatedResponse<{ resources: Resource[] }>> => {
+  getResources: async (page: number = 1, size: number = 100, resourceType?: number): Promise<PaginatedResponse<{ resources: Resource[] }>> => {
     const params: any = { skip: (page - 1) * size, limit: size };
     if (resourceType) {
       params.resource_type = resourceType;
     }
-    return api.get('/v1/resources', { params });
+    return api.get('/v1/resources/', { params });
   },
 
   // 获取资源详情
