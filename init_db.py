@@ -13,7 +13,7 @@ from app.core.database import SessionLocal, engine
 from app.models import Base, User, Enterprise, Role, Resource
 from app.services.user_service import UserService
 from app.core.security import get_password_hash
-from app.models.relationships import UserEnterprise, UserRole, RoleEnterprise, ResourceRole
+from app.models.relationships import UserEnterprise, UserRole, RoleEnterprise, ResourceRole, ResourceEnterprise
 
 
 def init_database():
@@ -193,8 +193,22 @@ def create_default_relationships(db: Session, admin_user: User, admin_role: Role
         )
         db.add(role_enterprise)
     
-    # 资源-角色关系（管理员拥有所有资源权限）
+    # 资源-企业关系（所有资源都属于默认企业）
     resources = db.query(Resource).all()
+    for resource in resources:
+        resource_enterprise = db.query(ResourceEnterprise).filter(
+            ResourceEnterprise.resource_code == resource.code,
+            ResourceEnterprise.enterprise_code == default_enterprise.code
+        ).first()
+        
+        if not resource_enterprise:
+            resource_enterprise = ResourceEnterprise(
+                resource_code=resource.code,
+                enterprise_code=default_enterprise.code
+            )
+            db.add(resource_enterprise)
+    
+    # 资源-角色关系（管理员拥有所有资源权限）
     for resource in resources:
         resource_role = db.query(ResourceRole).filter(
             ResourceRole.resource_code == resource.code,
@@ -204,8 +218,7 @@ def create_default_relationships(db: Session, admin_user: User, admin_role: Role
         if not resource_role:
             resource_role = ResourceRole(
                 resource_code=resource.code,
-                role_code=admin_role.code,
-                status=0
+                role_code=admin_role.code
             )
             db.add(resource_role)
     

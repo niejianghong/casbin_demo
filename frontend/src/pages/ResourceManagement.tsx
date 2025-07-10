@@ -42,6 +42,7 @@ const ResourceManagement: React.FC = () => {
   const [resourceRoles, setResourceRoles] = useState<Role[]>([]);
   const [form] = Form.useForm();
   const [roleForm] = Form.useForm();
+  const [selectedEnterpriseCodes, setSelectedEnterpriseCodes] = useState<string[]>([]);
 
   useEffect(() => {
     fetchResources();
@@ -175,9 +176,23 @@ const ResourceManagement: React.FC = () => {
     return result;
   };
 
+  // 获取资源已分配的企业
+  const fetchResourceEnterprises = async (resourceCode: string) => {
+    try {
+      const res = await resourceService.getResourceEnterprises(resourceCode);
+      const codes = (res.data?.enterprises || []).map((e: any) => e.enterprise_code);
+      setSelectedEnterpriseCodes(codes);
+      form.setFieldsValue({ enterprise_codes: codes });
+    } catch (error) {
+      setSelectedEnterpriseCodes([]);
+    }
+  };
+
+  // 打开新增/编辑弹窗时，回显企业
   const handleAdd = (parentCode?: string) => {
     setEditingResource(null);
     form.resetFields();
+    setSelectedEnterpriseCodes([]);
     if (parentCode) {
       form.setFieldsValue({ parent_code: parentCode });
     }
@@ -187,6 +202,11 @@ const ResourceManagement: React.FC = () => {
   const handleEdit = (record: Resource) => {
     setEditingResource(record);
     form.setFieldsValue(record);
+    if (record.code) {
+      fetchResourceEnterprises(record.code);
+    } else {
+      setSelectedEnterpriseCodes([]);
+    }
     setModalVisible(true);
   };
 
@@ -203,9 +223,9 @@ const ResourceManagement: React.FC = () => {
     }
   };
 
+  // 提交表单时，先保存资源，再分配企业
   const handleSubmit = async (values: any) => {
     try {
-      // 转换类型字段，只保留后端需要的字段
       const submitData = {
         name: values.name,
         code: values.code,
@@ -215,21 +235,28 @@ const ResourceManagement: React.FC = () => {
         parent_code: values.parent_code,
         status: values.status
       };
-      
-      console.log('提交的数据:', submitData);
-      
+      let resourceCode = values.code;
+      let resourceId = editingResource?.id;
       if (editingResource) {
         await resourceService.updateResource(editingResource.id, submitData);
         message.success('更新资源成功');
       } else {
-        await resourceService.createResource(submitData);
+        const res = await resourceService.createResource(submitData);
+        resourceCode = res.code;
+        resourceId = res.id;
         message.success('创建资源成功');
+      }
+      // 分配企业
+      if (resourceCode && values.enterprise_codes && values.enterprise_codes.length > 0) {
+        await resourceService.assignResourceToEnterprises({
+          resource_code: resourceCode,
+          enterprise_codes: values.enterprise_codes
+        });
       }
       setModalVisible(false);
       fetchResources();
     } catch (error: any) {
       console.error('提交失败:', error);
-      console.error('错误详情:', error.response?.data);
       message.error(editingResource ? '更新资源失败' : '创建资源失败');
     }
   };
@@ -421,14 +448,14 @@ const ResourceManagement: React.FC = () => {
                 <TreeSelect
                   placeholder="请选择父级资源"
                   allowClear
-                                     treeData={treeData.map(node => ({
-                     title: node.title,
-                     value: node.code,
-                     children: node.children?.map((child: any) => ({
-                       title: child.title,
-                       value: child.code
-                     }))
-                   }))}
+                  treeData={treeData.map(node => ({
+                    title: node.title,
+                    value: node.code,
+                    children: node.children?.map((child: any) => ({
+                      title: child.title,
+                      value: child.code
+                    }))
+                  }))}
                 />
               </Form.Item>
             </Col>
@@ -451,17 +478,43 @@ const ResourceManagement: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="status"
-            label="状态"
-            rules={[{ required: true, message: '请选择状态' }]}
-            initialValue={0}
-          >
-            <Select>
-              <Option value={0}>正常</Option>
-              <Option value={1}>禁用</Option>
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="enterprise_codes"
+                label="所属企业"
+                rules={[{ required: true, message: '请选择所属企业' }]}
+              >
+                <Select
+                  mode="multiple"
+                  placeholder="请选择企业"
+                  value={selectedEnterpriseCodes}
+                  onChange={setSelectedEnterpriseCodes}
+                  showSearch
+                  optionFilterProp="children"
+                >
+                  {enterprises.map(ent => (
+                    <Option key={ent.code} value={ent.code}>{ent.name} ({ent.code})</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="status"
+                label="状态"
+                rules={[{ required: true, message: '请选择状态' }]}
+                initialValue={0}
+              >
+                <Select>
+                  <Option value={0}>正常</Option>
+                  <Option value={1}>禁用</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>
             <Space>
               <Button onClick={() => setModalVisible(false)}>

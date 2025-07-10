@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.role import Role
 from app.models.resource import Resource
-from app.models.relationships import UserRole, RoleEnterprise, ResourceRole, UserEnterprise
+from app.models.relationships import UserRole, RoleEnterprise, ResourceRole, UserEnterprise, ResourceEnterprise
 from sqlalchemy import and_
 from app.core.redis_cache import redis_cache
 
@@ -43,23 +43,31 @@ class PermissionManager:
             return True
         
         # 条件2: User表中的is_admin是1
-        user = self.db.query(User).filter(User.user_id == user_id).first()
-        if user and user.is_admin == 1:
-            redis_cache.set(cache_key, True, self._super_admin_cache_ttl)
-            return True
+        try:
+            user = self.db.query(User).filter(User.user_id == user_id).first()
+            if user and user.is_admin == 1:
+                redis_cache.set(cache_key, True, self._super_admin_cache_ttl)
+                return True
+        except Exception:
+            # 如果查询失败，继续检查其他条件
+            pass
         
         # 条件3: 用户所在的任意企业的角色(role_code)是admin
-        # 明确指定ON条件
-        admin_role_exists = self.db.query(UserRole).join(
-            Role, UserRole.role_id == Role.id
-        ).filter(
-            UserRole.user_id == user_id,
-            Role.code == "admin"
-        ).first() is not None
-        
-        if admin_role_exists:
-            redis_cache.set(cache_key, True, self._super_admin_cache_ttl)
-            return True
+        try:
+            # 明确指定ON条件
+            admin_role_exists = self.db.query(UserRole).join(
+                Role, UserRole.role_id == Role.id
+            ).filter(
+                UserRole.user_id == user_id,
+                Role.code == "admin"
+            ).first() is not None
+            
+            if admin_role_exists:
+                redis_cache.set(cache_key, True, self._super_admin_cache_ttl)
+                return True
+        except Exception:
+            # 如果查询失败，返回False
+            pass
         
         # 缓存结果
         redis_cache.set(cache_key, False, self._super_admin_cache_ttl)
@@ -110,13 +118,22 @@ class PermissionManager:
         
         return [re.role_code for re in role_enterprises]
     
-    def _get_role_resources(self, role_codes: List[str]) -> Set[str]:
-        """获取角色对应的资源列表"""
+    def _get_role_resources(self, role_codes: List[str], enterprise_code: str) -> Set[str]:
+        """获取角色对应的资源列表（限制在企业范围内）"""
         if not role_codes:
             return set()
         
+        # 获取角色对应的资源，同时确保资源属于指定企业
+        # 通过关联表查询企业下的资源
+        enterprise_resources = self.db.query(ResourceEnterprise.resource_code).filter(
+            ResourceEnterprise.enterprise_code == enterprise_code
+        ).subquery()
+        
         resource_roles = self.db.query(ResourceRole).filter(
-            ResourceRole.role_code.in_(role_codes)
+            and_(
+                ResourceRole.role_code.in_(role_codes),
+                ResourceRole.resource_code.in_(enterprise_resources)
+            )
         ).all()
         
         return {rr.resource_code for rr in resource_roles}
@@ -134,7 +151,7 @@ class PermissionManager:
         user_roles = self._get_user_roles(user_id, enterprise_code)
         
         # 获取角色对应的资源
-        permissions = self._get_role_resources(user_roles)
+        permissions = self._get_role_resources(user_roles, enterprise_code)
         
         # 缓存结果
         redis_cache.set(cache_key, permissions, self._user_permissions_cache_ttl)
@@ -330,6 +347,66 @@ class PermissionManager:
         except Exception:
             self.db.rollback()
             return False
+    
+    def add_resource_enterprise(self, resource_code: str, enterprise_code: str) -> bool:
+        """为资源添加企业关系"""
+        try:
+            # 检查是否已存在
+            existing = self.db.query(ResourceEnterprise).filter(
+                and_(
+                    ResourceEnterprise.resource_code == resource_code,
+                    ResourceEnterprise.enterprise_code == enterprise_code
+                )
+            ).first()
+            
+            if existing:
+                return True
+            
+            resource_enterprise = ResourceEnterprise(
+                resource_code=resource_code,
+                enterprise_code=enterprise_code
+            )
+            self.db.add(resource_enterprise)
+            self.db.commit()
+            
+            # 清除相关缓存
+            self._clear_enterprise_cache(enterprise_code)
+            
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+    
+    def remove_resource_enterprise(self, resource_code: str, enterprise_code: str) -> bool:
+        """移除资源企业关系"""
+        try:
+            resource_enterprise = self.db.query(ResourceEnterprise).filter(
+                and_(
+                    ResourceEnterprise.resource_code == resource_code,
+                    ResourceEnterprise.enterprise_code == enterprise_code
+                )
+            ).first()
+            
+            if not resource_enterprise:
+                return False
+            
+            self.db.delete(resource_enterprise)
+            self.db.commit()
+            
+            # 清除相关缓存
+            self._clear_enterprise_cache(enterprise_code)
+            
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+    
+    def get_enterprise_resources(self, enterprise_code: str) -> List[str]:
+        """获取企业下的所有资源"""
+        resource_enterprises = self.db.query(ResourceEnterprise).filter(
+            ResourceEnterprise.enterprise_code == enterprise_code
+        ).all()
+        return [re.resource_code for re in resource_enterprises]
     
     def _clear_user_cache(self, user_id: int):
         """清除用户相关缓存"""

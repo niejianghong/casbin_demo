@@ -49,9 +49,34 @@ class RoleService:
         return db.query(Role).filter(Role.code == role_code).first()
     
     @staticmethod
-    def get_roles(db: Session, skip: int = 0, limit: int = 100) -> List[Role]:
+    def get_roles(db: Session, skip: int = 0, limit: int = 100, enterprise_code: str = None, user_id: int = None) -> List[Role]:
         """获取角色列表"""
-        return db.query(Role).offset(skip).limit(limit).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            return db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
+                RoleEnterprise.enterprise_code == enterprise_code
+            ).offset(skip).limit(limit).all()
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有角色
+                    return db.query(Role).offset(skip).limit(limit).all()
+                else:
+                    # 普通用户只能看到自己企业的角色
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        return db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
+                            RoleEnterprise.enterprise_code.in_(user_enterprises)
+                        ).offset(skip).limit(limit).all()
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有角色
+                return db.query(Role).offset(skip).limit(limit).all()
     
     @staticmethod
     def update_role(db: Session, role_id: int, role_data: RoleUpdate) -> Optional[Role]:
@@ -75,6 +100,15 @@ class RoleService:
         db_role = db.query(Role).filter(Role.id == role_id).first()
         if not db_role:
             return False
+        
+        # 删除角色关联的权限
+        db.query(RoleEnterprise).filter(RoleEnterprise.role_id == role_id).delete()
+        
+        # 删除角色关联的权限
+        db.query(UserRole).filter(UserRole.role_id == role_id).delete()
+
+        # 删除企业中的角色
+        db.query(RoleEnterprise).filter(RoleEnterprise.role_id == role_id).delete()
         
         db.delete(db_role)
         db.commit()
@@ -109,6 +143,37 @@ class RoleService:
         return db.query(UserRole).filter(UserRole.role_id == role_id).all()
     
     @staticmethod
-    def get_active_roles(db: Session) -> List[Role]:
+    def get_active_roles(db: Session, enterprise_code: str = None, user_id: int = None) -> List[Role]:
         """获取活跃角色列表"""
-        return db.query(Role).filter(Role.status == 0).all() 
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            return db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
+                and_(
+                    Role.status == 0,
+                    RoleEnterprise.enterprise_code == enterprise_code
+                )
+            ).all()
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有活跃角色
+                    return db.query(Role).filter(Role.status == 0).all()
+                else:
+                    # 普通用户只能看到自己企业的活跃角色
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        return db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
+                            and_(
+                                Role.status == 0,
+                                RoleEnterprise.enterprise_code.in_(user_enterprises)
+                            )
+                        ).all()
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有活跃角色
+                return db.query(Role).filter(Role.status == 0).all() 

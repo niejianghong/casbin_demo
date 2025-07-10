@@ -39,4 +39,10 @@ class ResourceResponse(ResourceBase):
 class ResourceRoleAssign(BaseModel):
     """资源角色分配模式"""
     resource_code: str
-    role_codes: List[str] 
+    role_codes: List[str]
+
+
+class ResourceEnterpriseAssign(BaseModel):
+    """资源企业分配模式"""
+    resource_code: str
+    enterprise_codes: List[str] 

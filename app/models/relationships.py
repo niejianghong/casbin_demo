@@ -54,4 +54,15 @@ class ResourceRole(Base):
     resource_code = Column(String(255), nullable=False, comment="资源代码")
     role_code = Column(String(255), nullable=False, comment="角色代码")
     create_time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    update_time = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class ResourceEnterprise(Base):
+    """资源企业关系模型"""
+    __tablename__ = "resource_enterprise"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="ID")
+    resource_code = Column(String(255), nullable=False, comment="资源代码")
+    enterprise_code = Column(String(30), nullable=False, comment="企业代码")
+    create_time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     update_time = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False) 

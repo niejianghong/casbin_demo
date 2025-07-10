@@ -58,9 +58,44 @@ class UserService:
         return db.query(User).filter(User.user_name == username).first()
     
     @staticmethod
-    def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
+    def get_users(db: Session, skip: int = 0, limit: int = 100, enterprise_code: str = None, user_id: int = None) -> List[User]:
         """获取用户列表"""
-        return db.query(User).offset(skip).limit(limit).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            return db.query(User).join(
+                UserEnterprise, User.user_id == UserEnterprise.user_id
+            ).filter(
+                and_(
+                    UserEnterprise.enterprise_code == enterprise_code,
+                    UserEnterprise.status == 0
+                )
+            ).offset(skip).limit(limit).all()
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有用户
+                    return db.query(User).offset(skip).limit(limit).all()
+                else:
+                    # 普通用户只能看到自己企业的用户
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        return db.query(User).join(
+                            UserEnterprise, User.user_id == UserEnterprise.user_id
+                        ).filter(
+                            and_(
+                                UserEnterprise.enterprise_code.in_(user_enterprises),
+                                UserEnterprise.status == 0
+                            )
+                        ).offset(skip).limit(limit).all()
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有用户
+                return db.query(User).offset(skip).limit(limit).all()
     
     @staticmethod
     def update_user(db: Session, user_id: int, user_data: UserUpdate) -> Optional[User]:
@@ -88,6 +123,13 @@ class UserService:
         db_user = db.query(User).filter(User.user_id == user_id).first()
         if not db_user:
             return False
+        
+        # 删除用户关联的权限
+        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+        
+        # 删除用户关联的企业
+        db.query(UserEnterprise).filter(UserEnterprise.user_id == user_id).delete()
+        
         
         db.delete(db_user)
         db.commit()

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.core.permission_manager import get_permission_manager
+from app.models.relationships import UserEnterprise
 from app.models.role import Role
 from app.services.role_service import RoleService
 from app.services.user_service import UserService
@@ -18,12 +20,26 @@ router = APIRouter(prefix="/users", tags=["用户管理"])
 def get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
+    enterprise_code: str = Query(None, description="企业代码"),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("user", "read"))
 ):
     """获取用户列表"""
-    users = UserService.get_users(db, skip=skip, limit=limit)
-    total = db.query(User).count()
+    users = UserService.get_users(db, skip=skip, limit=limit, enterprise_code=enterprise_code, user_id=current_user.user_id)
+    
+    # 计算总数
+    if enterprise_code:
+        total = db.query(User).join(
+            UserEnterprise, User.user_id == UserEnterprise.user_id
+        ).filter(
+            and_(
+                UserEnterprise.enterprise_code == enterprise_code,
+                UserEnterprise.status == 0
+            )
+        ).count()
+    else:
+        # 超级管理员或没有企业限制时
+        total = db.query(User).count()
     
     user_list = []
     for user in users:

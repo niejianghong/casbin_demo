@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.resource import Resource
-from app.models.relationships import ResourceRole
+from app.models.relationships import ResourceRole, ResourceEnterprise
 from app.schemas.resource import ResourceCreate, ResourceUpdate, ResourceRoleAssign
 from app.core.permission_manager import get_permission_manager
 
@@ -48,14 +48,78 @@ class ResourceService:
         return db.query(Resource).filter(Resource.code == resource_code).first()
     
     @staticmethod
-    def get_resources(db: Session, skip: int = 0, limit: int = 100) -> List[Resource]:
+    def get_resources(db: Session, enterprise_code: str = None, skip: int = 0, limit: int = 100, user_id: int = None) -> List[Resource]:
         """获取资源列表"""
-        return db.query(Resource).offset(skip).limit(limit).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            # 通过关联表查询企业下的资源
+            resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                ResourceEnterprise.enterprise_code == enterprise_code
+            ).subquery()
+            query = db.query(Resource).filter(Resource.code.in_(resource_codes))
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有资源
+                    query = db.query(Resource)
+                else:
+                    # 普通用户只能看到自己企业的资源
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                            ResourceEnterprise.enterprise_code.in_(user_enterprises)
+                        ).subquery()
+                        query = db.query(Resource).filter(Resource.code.in_(resource_codes))
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有资源
+                query = db.query(Resource)
+        return query.offset(skip).limit(limit).all()
     
     @staticmethod
-    def get_resources_by_type(db: Session, resource_type: int) -> List[Resource]:
+    def get_resources_by_type(db: Session, resource_type: int, enterprise_code: str = None, user_id: int = None) -> List[Resource]:
         """根据类型获取资源"""
-        return db.query(Resource).filter(Resource.type == resource_type).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            # 通过关联表查询企业下的指定类型资源
+            resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                ResourceEnterprise.enterprise_code == enterprise_code
+            ).subquery()
+            query = db.query(Resource).filter(
+                Resource.type == resource_type,
+                Resource.code.in_(resource_codes)
+            )
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有资源
+                    query = db.query(Resource).filter(Resource.type == resource_type)
+                else:
+                    # 普通用户只能看到自己企业的资源
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                            ResourceEnterprise.enterprise_code.in_(user_enterprises)
+                        ).subquery()
+                        query = db.query(Resource).filter(
+                            Resource.type == resource_type,
+                            Resource.code.in_(resource_codes)
+                        )
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有资源
+                query = db.query(Resource).filter(Resource.type == resource_type)
+        return query.all()
     
     @staticmethod
     def update_resource(db: Session, resource_id: int, resource_data: ResourceUpdate) -> Optional[Resource]:
@@ -79,6 +143,12 @@ class ResourceService:
         db_resource = db.query(Resource).filter(Resource.id == resource_id).first()
         if not db_resource:
             return False
+        
+        # 删除资源关联的权限
+        db.query(ResourceRole).filter(ResourceRole.resource_code == db_resource.code).delete()
+        
+        # 删除资源关联的企业
+        db.query(ResourceEnterprise).filter(ResourceEnterprise.resource_code == db_resource.code).delete()
         
         db.delete(db_resource)
         db.commit()
@@ -115,17 +185,92 @@ class ResourceService:
         ).all()
     
     @staticmethod
-    def get_active_resources(db: Session) -> List[Resource]:
+    def get_active_resources(db: Session, enterprise_code: str = None, user_id: int = None) -> List[Resource]:
         """获取活跃资源列表"""
-        return db.query(Resource).filter(Resource.status == 0).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            # 通过关联表查询企业下的活跃资源
+            resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                ResourceEnterprise.enterprise_code == enterprise_code
+            ).subquery()
+            query = db.query(Resource).filter(
+                Resource.status == 0,
+                Resource.code.in_(resource_codes)
+            )
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有资源
+                    query = db.query(Resource).filter(Resource.status == 0)
+                else:
+                    # 普通用户只能看到自己企业的资源
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                            ResourceEnterprise.enterprise_code.in_(user_enterprises)
+                        ).subquery()
+                        query = db.query(Resource).filter(
+                            Resource.status == 0,
+                            Resource.code.in_(resource_codes)
+                        )
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有资源
+                query = db.query(Resource).filter(Resource.status == 0)
+        return query.all()
     
     @staticmethod
-    def get_menu_tree(db: Session) -> List[dict]:
+    def get_menu_tree(db: Session, enterprise_code: str = None, user_id: int = None) -> List[dict]:
         """获取菜单树结构"""
-        resources = db.query(Resource).filter(
-            Resource.type == 2,  # Menu类型
-            Resource.status == 0
-        ).all()
+        # 如果指定了企业代码，按企业过滤
+        if enterprise_code:
+            # 通过关联表查询企业下的菜单资源
+            resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                ResourceEnterprise.enterprise_code == enterprise_code
+            ).subquery()
+            query = db.query(Resource).filter(
+                Resource.type == 2,  # Menu类型
+                Resource.status == 0,
+                Resource.code.in_(resource_codes)
+            )
+        else:
+            # 如果没有指定企业代码，检查是否为超级管理员
+            if user_id:
+                from app.core.permission_manager import get_permission_manager
+                permission_manager = get_permission_manager(db)
+                if permission_manager._is_super_admin(user_id):
+                    # 超级管理员可以看到所有菜单
+                    query = db.query(Resource).filter(
+                        Resource.type == 2,  # Menu类型
+                        Resource.status == 0
+                    )
+                else:
+                    # 普通用户只能看到自己企业的菜单
+                    user_enterprises = permission_manager.get_user_enterprises(user_id)
+                    if user_enterprises:
+                        resource_codes = db.query(ResourceEnterprise.resource_code).filter(
+                            ResourceEnterprise.enterprise_code.in_(user_enterprises)
+                        ).subquery()
+                        query = db.query(Resource).filter(
+                            Resource.type == 2,  # Menu类型
+                            Resource.status == 0,
+                            Resource.code.in_(resource_codes)
+                        )
+                    else:
+                        # 用户没有企业，返回空列表
+                        return []
+            else:
+                # 没有用户ID，返回所有菜单
+                query = db.query(Resource).filter(
+                    Resource.type == 2,  # Menu类型
+                    Resource.status == 0
+                )
+        resources = query.all()
         
         # 构建树结构
         menu_dict = {}
@@ -147,4 +292,37 @@ class ResourceService:
             else:
                 menu_tree.append(menu)
         
-        return menu_tree 
+        return menu_tree
+    
+    @staticmethod
+    def assign_resource_to_enterprises(db: Session, resource_code: str, enterprise_codes: List[str]) -> bool:
+        """分配资源到企业"""
+        # 删除现有的企业关联
+        db.query(ResourceEnterprise).filter(
+            ResourceEnterprise.resource_code == resource_code
+        ).delete()
+        
+        # 创建新的企业关联
+        for enterprise_code in enterprise_codes:
+            resource_enterprise = ResourceEnterprise(
+                resource_code=resource_code,
+                enterprise_code=enterprise_code
+            )
+            db.add(resource_enterprise)
+        
+        db.commit()
+        return True
+    
+    @staticmethod
+    def get_resource_enterprises(db: Session, resource_code: str) -> List[ResourceEnterprise]:
+        """获取资源关联的企业"""
+        return db.query(ResourceEnterprise).filter(
+            ResourceEnterprise.resource_code == resource_code
+        ).all()
+    
+    @staticmethod
+    def get_enterprise_resources(db: Session, enterprise_code: str) -> List[ResourceEnterprise]:
+        """获取企业关联的资源"""
+        return db.query(ResourceEnterprise).filter(
+            ResourceEnterprise.enterprise_code == enterprise_code
+        ).all() 

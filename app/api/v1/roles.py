@@ -17,12 +17,21 @@ router = APIRouter(prefix="/roles", tags=["角色管理"])
 def get_roles(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
+    enterprise_code: str = Query(None, description="企业代码"),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("role", "read"))
 ):
     """获取角色列表"""
-    roles = RoleService.get_roles(db, skip=skip, limit=limit)
-    total = db.query(Role).count()
+    roles = RoleService.get_roles(db, skip=skip, limit=limit, enterprise_code=enterprise_code, user_id=current_user.user_id)
+    
+    # 计算总数
+    if enterprise_code:
+        total = db.query(Role).join(RoleEnterprise, Role.code == RoleEnterprise.role_code).filter(
+            RoleEnterprise.enterprise_code == enterprise_code
+        ).count()
+    else:
+        # 超级管理员或没有企业限制时
+        total = db.query(Role).count()
     
     role_list = []
     for role in roles:
@@ -264,11 +273,12 @@ def get_role_users(
 
 @router.get("/active/list", response_model=List[RoleResponse])
 def get_active_roles(
+    enterprise_code: str = Query(None, description="企业代码"),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_permission("role", "read"))
 ):
     """获取活跃角色列表"""
-    roles = RoleService.get_active_roles(db)
+    roles = RoleService.get_active_roles(db, enterprise_code=enterprise_code, user_id=current_user.user_id)
     
     role_list = []
     for role in roles:
